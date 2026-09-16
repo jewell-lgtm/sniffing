@@ -3,8 +3,14 @@
 Menu bar toggle that keeps the Mac awake, including with the lid closed, while it is on charger.
 
 One click does two things: holds a power assertion against idle sleep, and runs
-`pmset -c disablesleep 1`. Toggling off, or quitting, reverses both. On launch it
-resets lid sleep in case a previous session died with it disabled.
+`pmset -c disablesleep 1`. Toggling off, or quitting, reverses both.
+
+The system setting is the source of truth. On launch the app adopts whatever
+`pmset -g` reports, re-reads it every five seconds and whenever the menu opens,
+and follows changes made from a terminal or another tool. The menu's first line
+says what closing the lid will actually do right now, including "sleeps (on
+battery)" when the override is armed but not in effect; the icon dims in that
+case.
 
 ## Build and install
 

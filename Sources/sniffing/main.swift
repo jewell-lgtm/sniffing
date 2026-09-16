@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.ps
 import IOKit.pwr_mgt
 import ServiceManagement
 
@@ -16,6 +17,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var assertion = IOPMAssertionID(0)
     private var active = false
+    private var poll: Timer?
+    private var powerSource: CFRunLoopSource?
+    private let stateItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let toggleItem = NSMenuItem(title: "Stay awake", action: #selector(toggle), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at login", action: #selector(toggleLogin), keyEquivalent: "")
 
@@ -23,25 +27,36 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
         menu.delegate = self
+        menu.autoenablesItems = false
+        stateItem.isEnabled = false
         toggleItem.target = self
         loginItem.target = self
+        menu.addItem(stateItem)
+        menu.addItem(.separator())
         menu.addItem(toggleItem)
         menu.addItem(.separator())
         menu.addItem(loginItem)
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit sniffing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit sniffing", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.target = NSApp
+        menu.addItem(quit)
         statusItem.menu = menu
 
-        // A previous session that crashed or was killed may have left lid sleep off.
-        if Lid.isDisabled { Lid.set(disabled: false) }
-        render()
+        // The system setting is the source of truth: adopt it, and keep following it
+        // so changes made from a terminal or another tool show up here too.
+        sync()
+        poll = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sync() }
+        }
+        observePowerSource()
     }
 
     func applicationWillTerminate(_ note: Notification) {
-        deactivate()
+        if active { deactivate() }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        sync()
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
@@ -51,34 +66,61 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func activate() {
         guard Lid.set(disabled: true) else { return }
-        var id = IOPMAssertionID(0)
-        let result = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "sniffing: stay awake requested from the menu bar" as CFString,
-            &id
-        )
-        if result == kIOReturnSuccess { assertion = id }
-        active = true
-        render()
+        sync()
     }
 
     private func deactivate() {
-        if assertion != 0 {
+        Lid.set(disabled: false)
+        sync()
+    }
+
+    /// Bring the assertion and UI in line with the system's lid-sleep setting.
+    private func sync() {
+        let lidDisabled = Lid.isDisabled
+        if lidDisabled && assertion == 0 {
+            var id = IOPMAssertionID(0)
+            let result = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "sniffing: stay awake requested from the menu bar" as CFString,
+                &id
+            )
+            if result == kIOReturnSuccess { assertion = id }
+        }
+        if !lidDisabled && assertion != 0 {
             IOPMAssertionRelease(assertion)
             assertion = 0
         }
-        Lid.set(disabled: false)
-        active = false
+        active = lidDisabled
         render()
     }
 
     private func render() {
+        let onCharger = Power.onCharger
+        let effective = active && onCharger
         let symbol = active ? "cup.and.saucer.fill" : "cup.and.saucer"
-        let label = active ? "sniffing: on" : "sniffing: off"
-        statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
-        statusItem.button?.toolTip = label
+        let state: String
+        switch (active, onCharger) {
+        case (true, true): state = "Lid closed: stays awake"
+        case (true, false): state = "Lid closed: sleeps (on battery)"
+        case (false, _): state = "Lid closed: sleeps"
+        }
+        statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: state)
+        statusItem.button?.appearsDisabled = active && !effective
+        statusItem.button?.toolTip = state
+        stateItem.title = state
         toggleItem.state = active ? .on : .off
+    }
+
+    private func observePowerSource() {
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        guard let source = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context else { return }
+            let app = Unmanaged<App>.fromOpaque(context).takeUnretainedValue()
+            MainActor.assumeIsolated { app.render() }
+        }, context)?.takeRetainedValue() else { return }
+        powerSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
     }
 
     @objc private func toggleLogin() {
@@ -91,6 +133,15 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+}
+
+enum Power {
+    /// The lid override is scoped to charger power, so on battery it has no effect.
+    static var onCharger: Bool {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let type = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() else { return true }
+        return String(type) == kIOPMACPowerKey
     }
 }
 

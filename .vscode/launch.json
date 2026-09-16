@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:sniffing}",
+            "name": "Debug sniffing",
+            "target": "sniffing",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug sniffing"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:sniffing}",
+            "name": "Release sniffing",
+            "target": "sniffing",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release sniffing"
+        }
+    ]
+}
