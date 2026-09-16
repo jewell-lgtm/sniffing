@@ -24,9 +24,11 @@ sleeps as normal, so an unplugged laptop can't cook in a bag.
     ./build.sh
     open ~/Applications/sniffing.app
 
-`build.sh` compiles a release build, wraps it as `~/Applications/sniffing.app`
-and symlinks the binary to `~/.local/bin/sniffing`. The same executable serves
-both modes. The app is ad-hoc signed, which is fine for a local tool.
+`build.sh` runs in four steps: compile a release build, run the whole test
+suite, wrap the binary as `~/Applications/sniffing.app`, and symlink it to
+`~/.local/bin/sniffing`. A failing test stops the build before anything is
+installed. The same executable serves both modes. The app is ad-hoc signed,
+which is fine for a local tool.
 
 ## Menu bar mode
 
