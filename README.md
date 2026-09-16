@@ -43,6 +43,16 @@ password prompt each time you toggle. To make it silent:
 
     matthew.jewell ALL=(root) NOPASSWD: /usr/bin/pmset -c disablesleep 1, /usr/bin/pmset -c disablesleep 0
 
+## Tests
+
+    swift test
+
+The suite runs the built binary as a subprocess against fake `pmset`, `sudo`
+and `osascript` scripts, injected through `SNIFFING_PMSET`, `SNIFFING_SUDO` and
+`SNIFFING_OSASCRIPT`. Nothing needs root and the machine's real sleep setting
+is never touched. Assertions are on the CLI's output and exit codes, and on
+what the fakes were told to do.
+
 ## Notes
 
 - `-c` scopes the lid override to charger power. On battery the lid sleeps as normal, so an unplugged laptop can't cook in a bag.

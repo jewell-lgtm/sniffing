@@ -95,7 +95,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func render(_ state: State) {
-        let symbol = state.active ? "cup.and.saucer.fill" : "cup.and.saucer"
+        let symbol = state.active ? "eye" : "eye.slash"
         statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: state.summary)
         statusItem.button?.appearsDisabled = state.active && !state.effective
         statusItem.button?.toolTip = state.summary
