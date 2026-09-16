@@ -12,4 +12,6 @@ codesign --force --sign - "$app"
 mkdir -p ~/Applications
 rm -rf ~/Applications/sniffing.app
 cp -R "$app" ~/Applications/sniffing.app
-echo "installed ~/Applications/sniffing.app"
+mkdir -p ~/.local/bin
+ln -sf ~/Applications/sniffing.app/Contents/MacOS/sniffing ~/.local/bin/sniffing
+echo "installed ~/Applications/sniffing.app and ~/.local/bin/sniffing"

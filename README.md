@@ -17,6 +17,23 @@ case.
     ./build.sh
     open ~/Applications/sniffing.app
 
+This installs `~/Applications/sniffing.app` and symlinks the binary to
+`~/.local/bin/sniffing`, so the same executable serves both modes.
+
+## Two modes
+
+With no arguments it runs as the menu bar app. With a command it acts on the
+system setting and exits:
+
+    sniffing on      # keep awake, lid closed included, while on charger
+    sniffing off     # restore normal sleep
+    sniffing toggle
+    sniffing status  # what closing the lid will do right now
+
+The CLI asks for your password in the terminal when it needs one; the menu bar
+app uses the macOS admin dialog. Either way the running menu bar app follows
+the change within a few seconds.
+
 ## Silent lid toggle
 
 `pmset disablesleep` needs root. Without the rule below macOS shows an admin
