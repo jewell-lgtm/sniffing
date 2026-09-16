@@ -24,6 +24,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // A stable identity lets macOS and menu bar managers remember its position.
+        statusItem.autosaveName = "sniffing"
         let menu = NSMenu()
         menu.delegate = self
         menu.autoenablesItems = false
