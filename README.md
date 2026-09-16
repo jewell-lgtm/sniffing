@@ -79,15 +79,24 @@ The line only appears when it is set to 1.
 ## Silent toggling
 
 `pmset disablesleep` needs root. Without the rule below you get a password
-prompt on every toggle. To make it silent:
+prompt on every toggle. To make it silent, run this once as an admin:
 
-    sudo visudo -f /etc/sudoers.d/pmset
+    echo "$USER ALL=(root) NOPASSWD: /usr/bin/pmset -c disablesleep 1, /usr/bin/pmset -c disablesleep 0" | sudo tee /etc/sudoers.d/pmset
+    sudo chmod 440 /etc/sudoers.d/pmset
+    sudo visudo -c -f /etc/sudoers.d/pmset
 
-Add one line, with your own username in place of `you`:
+The rule names your user directly and matches those two exact commands and
+nothing else. Check it took effect with:
 
-    you ALL=(root) NOPASSWD: /usr/bin/pmset -c disablesleep 1, /usr/bin/pmset -c disablesleep 0
+    sudo -n /usr/bin/pmset -c disablesleep 0 && echo ok
 
-The rule matches those two exact commands and nothing else.
+On a managed Mac where admin rights are granted temporarily, the rule outlives
+the admin window because it names the user rather than the `admin` group. Ask
+your IT team before relying on that; persisting any privilege past a granted
+window is the kind of thing endpoint policies exist to catch, however narrow
+the grant. Without the rule, `sniffing on` still works whenever you do have
+admin, and the setting persists after admin expires. Only changing it needs
+root.
 
 ## Tests
 
