@@ -20,7 +20,8 @@ struct Harness {
     ///   - lidDisabled: the initial `pmset disablesleep` value the fake reports.
     ///   - denyPasswordlessSudo: fake `sudo -n` fails, as it does without a sudoers rule.
     ///   - denySudo: fake `sudo` fails in every form.
-    init(lidDisabled: Bool = false, denyPasswordlessSudo: Bool = false, denySudo: Bool = false) throws {
+    ///   - batteryPercent: what the CLI is told the battery reads.
+    init(lidDisabled: Bool = false, denyPasswordlessSudo: Bool = false, denySudo: Bool = false, batteryPercent: Int? = nil) throws {
         dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("sniffing-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -70,6 +71,12 @@ struct Harness {
 
         if denyPasswordlessSudo { extraEnv["FAKE_SUDO_DENY_N"] = "1" }
         if denySudo { extraEnv["FAKE_SUDO_DENY_ALL"] = "1" }
+        if let batteryPercent { extraEnv["SNIFFING_BATTERY"] = String(batteryPercent) }
+    }
+
+    /// The settings and session file the CLI and menu bar app share, as written.
+    var stateJSON: String {
+        get throws { try String(contentsOf: dir.appendingPathComponent("state.json"), encoding: .utf8) }
     }
 
     private func install(_ name: String, script: String) throws {
@@ -117,6 +124,7 @@ struct Harness {
         env["SNIFFING_OSASCRIPT"] = dir.appendingPathComponent("osascript").path
         env["SNIFFING_TEST_STATE"] = stateFile.path
         env["SNIFFING_TEST_LOG"] = logFile.path
+        env["SNIFFING_STATE_DIR"] = dir.path
         extraEnv.forEach { env[$0.key] = $0.value }
         process.environment = env
         process.standardInput = stdin

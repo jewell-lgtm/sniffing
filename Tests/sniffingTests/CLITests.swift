@@ -117,6 +117,104 @@ struct CLITests {
         #expect(try h.calls.isEmpty, "a bad command must not touch the system")
     }
 
+    @Test("on with a duration records when the session ends and says so")
+    func onTimed() throws {
+        let h = try Harness()
+        let r = try h.run("on", "30m")
+        #expect(r.status == 0)
+        #expect(try h.lidDisabled)
+        #expect(r.stdout.contains("Ends in 30 min ("))
+        #expect(try h.stateJSON.contains("\"until\""))
+        let again = try h.run("status")
+        #expect(again.stdout.contains("Ends in 30 min ("))
+    }
+
+    @Test("on without a duration is open-ended")
+    func onIndefinite() throws {
+        let h = try Harness()
+        let r = try h.run("on")
+        #expect(!r.stdout.contains("Ends in"))
+        #expect(try !h.stateJSON.contains("\"until\""))
+    }
+
+    @Test("bad durations are rejected before anything is changed")
+    func badDuration() throws {
+        let h = try Harness()
+        for bad in ["90x", "0", "-5", "h", "later"] {
+            let r = try h.run("on", bad)
+            #expect(r.status == 2, "\(bad)")
+            #expect(r.stderr.contains("bad duration '\(bad)'"))
+        }
+        #expect(try !h.lidDisabled)
+        #expect(try h.calls.isEmpty)
+    }
+
+    @Test("off clears the session")
+    func offClearsSession() throws {
+        let h = try Harness()
+        try h.run("on", "2h")
+        try h.run("off")
+        #expect(try !h.stateJSON.contains("\"until\""))
+        #expect(!(try h.run("status")).stdout.contains("Ends in"))
+    }
+
+    @Test("status reports battery when the machine has one")
+    func statusBattery() throws {
+        let h = try Harness(batteryPercent: 42)
+        #expect(try h.run("status").stdout.contains("battery: 42%"))
+    }
+
+    @Test("config shows defaults, and each setting round-trips")
+    func config() throws {
+        let h = try Harness()
+        let defaults = try h.run("config")
+        #expect(defaults.status == 0)
+        #expect(defaults.stdout.contains("display-sleep: off"))
+        #expect(defaults.stdout.contains("battery-stop: 20%"))
+        #expect(defaults.stdout.contains("hotkey: on"))
+
+        #expect(try h.run("config", "display-sleep", "on").stdout.contains("display-sleep: on"))
+        #expect(try h.run("config", "battery-stop", "35").stdout.contains("battery-stop: 35%"))
+        #expect(try h.run("config", "battery-stop", "off").stdout.contains("battery-stop: off"))
+        #expect(try h.run("config", "hotkey", "off").stdout.contains("hotkey: off"))
+        let after = try h.run("config")
+        #expect(after.stdout.contains("display-sleep: on"))
+        #expect(after.stdout.contains("hotkey: off"))
+    }
+
+    @Test("config rejects bad values")
+    func configBad() throws {
+        let h = try Harness()
+        #expect(try h.run("config", "display-sleep", "maybe").status == 2)
+        #expect(try h.run("config", "battery-stop", "150").status == 2)
+        #expect(try h.run("config", "battery-stop", "0").status == 2)
+        #expect(try h.run("config", "nonsense").status == 2)
+        #expect(try h.run("config").stdout.contains("battery-stop: 20%"), "a rejected value must not be stored")
+    }
+
+    @Test("trigger apps can be added by name or bundle id, listed and removed")
+    func triggers() throws {
+        let h = try Harness()
+        #expect(try h.run("trigger", "list").stdout.contains("no trigger apps"))
+        let byName = try h.run("trigger", "add", "TextEdit")
+        #expect(byName.status == 0)
+        #expect(byName.stdout.contains("(com.apple.TextEdit)"))
+        let byID = try h.run("trigger", "add", "com.apple.finder")
+        #expect(byID.status == 0)
+        #expect(byID.stdout.contains("Finder"))
+        let list = try h.run("trigger", "list").stdout
+        #expect(list.contains("TextEdit (com.apple.TextEdit)"))
+        #expect(list.contains("Finder (com.apple.finder)"))
+        #expect(try h.run("trigger", "add", "TextEdit").status == 0, "adding twice is fine")
+        let lines = try h.run("trigger", "list").stdout.split(separator: "\n").filter { $0.hasPrefix("TextEdit (") }
+        #expect(lines.count == 1, "but not stored twice")
+
+        #expect(try h.run("trigger", "remove", "TextEdit").status == 0)
+        #expect(!(try h.run("trigger", "list")).stdout.contains("TextEdit"))
+        #expect(try h.run("trigger", "remove", "TextEdit").status == 2)
+        #expect(try h.run("trigger", "add", "NoSuchAppAnywhere").status == 2)
+    }
+
     @Test("help exits 0")
     func help() throws {
         let h = try Harness()
